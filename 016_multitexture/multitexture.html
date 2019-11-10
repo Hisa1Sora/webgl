@@ -1,7 +1,7 @@
 <html>
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-        <title>Texture Mapping</title>
+        <title>Multi Texture</title>
     </head>
     <body>
         .\chrome.exe --disable-web-security --user-data-dir<br>
@@ -26,13 +26,15 @@
         <script id="fs" type="x-shader/x-fragment">
             precision mediump float;
             
-            uniform sampler2D texture;
+            uniform sampler2D texture0;
+            uniform sampler2D texture1;
             varying vec4 vColor;
             varying vec2 vTextureCoord;
             
             void main(void){
-                vec4 smpColor = texture2D(texture, vTextureCoord);
-                gl_FragColor = vColor * smpColor;
+                vec4 smpColor0 = texture2D(texture0, vTextureCoord);
+                vec4 smpColor1 = texture2D(texture1, vTextureCoord);
+                gl_FragColor = vColor * smpColor0 * smpColor1;
             }
         </script>
 
@@ -54,7 +56,8 @@
                 SP.addAttribute('textureCoord', 2);
 
                 SP.addUniform('mvpMatrix');
-                SP.addUniform('texture');
+                SP.addUniform('texture0');
+                SP.addUniform('texture1');
 
                 // -----------------------------< attribute > ------------------------------
 
@@ -115,8 +118,10 @@
                 mat4.multiply(vpMatrix, vpMatrix, vMatrix);
 
                 // create texture
-                let texture = await SP.createTexture('lena.jpg');
-                SP.addTexture('texture', texture);
+                let texture0 = await SP.createTexture('tex1.png');
+                SP.addTexture('texture0', texture0);
+                let texture1 = await SP.createTexture('tex2.png');
+                SP.addTexture('texture1', texture1);
 
                 // -------------------------< loop >----------------------------
 
@@ -132,7 +137,8 @@
                     mat4.rotate(mMatrix, mMatrix, rad, [0, 1, 0]);
                     mat4.multiply(mvpMatrix, vpMatrix, mMatrix);
 
-                    SP.useTexture('texture');
+                    SP.useTexture('texture0');
+                    SP.useTexture('texture1');
                     gl.uniformMatrix4fv(SP.getUniform('mvpMatrix').location, false, mvpMatrix);
 
                     gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
@@ -237,9 +243,9 @@
 
                 useTexture(name) {
                     let uni = this.getUniform(name);
-                    this.gl.activeTexture(this.gl.TEXTURE0);
+                    this.gl.activeTexture(this.gl.TEXTURE0 + uni.textNum);
                     this.gl.bindTexture(this.gl.TEXTURE_2D, uni.texture);
-                    this.gl.uniform1i(uni.location, 0); 
+                    this.gl.uniform1i(uni.location, uni.textNum); 
                 }
 
                 setAttribute(vbo, ibo) {
