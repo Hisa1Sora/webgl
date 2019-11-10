@@ -90,10 +90,10 @@
                 let ambientColor = [0.1, 0.1, 0.1, 1.0];
 
                 // view
-                const cameraDirection = [0, 15, 20];
+                const cameraPosition = [0, 15, 20];
                 const lookAtPosition = [0, 0, 0];
                 const upDirection = [0, 1, 0];
-                mat4.lookAt(viewMatrix, cameraDirection, lookAtPosition, upDirection);
+                mat4.lookAt(viewMatrix, cameraPosition, lookAtPosition, upDirection);
 
                 // projection
                 mat4.perspective(projectionMatrix, Math.PI / 4, c.width / c.height, 0.1, 10000);
@@ -127,7 +127,7 @@
                     gl.uniformMatrix4fv(SP.getUniform('modelMatrix').location, false, modelMatrix);
                     gl.uniformMatrix4fv(SP.getUniform('invMatrix').location, false, invMatrix);
                     gl.uniform3fv(SP.getUniform('lightDirection').location, lightDirection);
-                    gl.uniform3fv(SP.getUniform('cameraDirection').location, cameraDirection);
+                    gl.uniform3fv(SP.getUniform('cameraDirection').location, cameraPosition);
                     gl.uniform4fv(SP.getUniform('ambientColor').location, ambientColor);
                     
                     gl.drawElements(gl.TRIANGLES, torus.index.length, gl.UNSIGNED_SHORT, 0);
