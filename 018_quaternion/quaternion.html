@@ -11,11 +11,13 @@
             attribute vec3 normal;
             attribute vec4 color;
             uniform   mat4 mvpMatrix;
-            uniform   mat4 modelMatrix;
+            uniform   mat4 mMatrix;
+            varying   vec3 vPosition;
             varying   vec3 vNormal;
             varying   vec4 vColor;
             
             void main(void){
+                vPosition = (mMatrix * vec4(position, 1.0)).xyz;
                 vNormal = normal;
                 vColor = color;
                 gl_Position = mvpMatrix * vec4(position, 1.0);
@@ -26,14 +28,16 @@
             precision mediump float;
             
             uniform mat4 invMatrix;
-            uniform vec3 lightDirection;
+            uniform vec3 lightPosition;
             uniform vec3 cameraDirection;
             uniform vec4 ambientColor;
+            varying vec3 vPosition;
             varying vec3 vNormal;
             varying vec4 vColor;
             
             void main(void){
-                vec3 invLight = normalize(invMatrix * vec4(lightDirection, 0.0)).xyz;
+                vec3 lightVec = lightPosition - vPosition;
+                vec3 invLight = normalize(invMatrix * vec4(lightVec, 0.0)).xyz;
                 vec3 invCamera = normalize(invMatrix * vec4(cameraDirection, 0.0)).xyz;
                 vec3 halfLC = normalize(invLight + invCamera);
                 float diffuse = clamp(dot(vNormal, invLight), 0.0, 1.0) + 0.2;
@@ -60,73 +64,88 @@
                 SP.addAttribute('color', 4);
 
                 SP.addUniform('mvpMatrix');
-                SP.addUniform('modelMatrix');
+                SP.addUniform('mMatrix');
                 SP.addUniform('invMatrix');
-                SP.addUniform('lightDirection');
+                SP.addUniform('lightPosition');
                 SP.addUniform('cameraDirection');
                 SP.addUniform('ambientColor');   
 
                 // -----------------------------< attribute > ------------------------------
 
                 // create torus
-                let torus = new Torus(32, 32, 1.0, 3.0);
+                let torus = new Torus(32, 32, 0.5, 1.5);
                 let torusData = {
                     pos: SP.createVbo(torus.position),
                     nor: SP.createVbo(torus.normal),
                     col: SP.createVbo(torus.color),
                     ibo: SP.createIbo(torus.index)
                 }
-
+                SP.setAttribute([torusData.pos, torusData.nor, torusData.col], torusData.ibo);
+                
                 // -----------------------------< Uniform >---------------------------
 
-                let modelMatrix = mat4.create();
-                let viewMatrix = mat4.create();
-                let projectionMatrix = mat4.create();
+                let mMatrix = mat4.create();
+                let vMatrix = mat4.create();
+                let pMatrix = mat4.create();
                 let vpMatrix = mat4.create();
                 let mvpMatrix = mat4.create();
                 let invMatrix = mat4.create();
 
-                let lightDirection = [-0.5, 0.5, 0.5];
+                let lightPosition = [30.0, 30.0, 30.0];
                 let ambientColor = [0.1, 0.1, 0.1, 1.0];
 
-                // view
-                const cameraPosition = [0, 15, 20];
-                const lookAtPosition = [0, 0, 0];
-                const upDirection = [0, 1, 0];
-                mat4.lookAt(viewMatrix, cameraPosition, lookAtPosition, upDirection);
-
-                // projection
-                mat4.perspective(projectionMatrix, Math.PI / 4, c.width / c.height, 0.1, 10000);
-
-                // VP
-                mat4.multiply(vpMatrix, vpMatrix, projectionMatrix);
-                mat4.multiply(vpMatrix, vpMatrix, viewMatrix);
-
-                // MVP
+                let cameraPosition = [0, 0, 10];
+                let lookAtPosition = [0, 0, 0];
+                let upDirection = [0, 1, 0];
+                let q = quat.create();
+                
+                let mouseMove = (e) => {
+                    let rect = c.getBoundingClientRect();
+                    let cw = c.width;
+                    let ch = c.height;
+                    let x = e.clientX - rect.left - cw / 2;
+                    let y = e.clientY - rect.top - ch / 2;
+                    let sq = Math.sqrt(x * x + y * y);
+                    let r = sq * 2.0 * Math.PI / Math.sqrt(cw * cw + ch * ch);
+                    if(sq != 1) {
+                        sq = 1 / sq;
+                        x *= sq;
+                        y *= sq;
+                    }
+                    quat.setAxisAngle(q, [y, x, 0], -r);
+                    quat.normalize(q, q);
+                }
+                c.addEventListener('mousemove', mouseMove);                
+                
+                // -------------------------< loop >----------------------------
 
                 let count = 0;
-
-                // -------------------------< loop >----------------------------
                 function loop() {
                     count++;
                     let rad = (count % 360) * Math.PI / 180;
-                    let tx = Math.cos(rad) * 5;
-                    let ty = Math.sin(rad) * 5;
-                    let tz = Math.sin(rad) * 5;
-
-                    SP.clearScene();
                     
-                    // draw torus
-                    SP.setAttribute([torusData.pos, torusData.nor, torusData.col], torusData.ibo);
+                    SP.clearScene();
+
+                    vec3.transformQuat(cameraPosition, [0, 0, 10], q);
+                    vec3.transformQuat(upDirection, [0, 1, 0], q);
+                    
+                    mat4.lookAt(vMatrix, cameraPosition, lookAtPosition, upDirection);
+                    mat4.perspective(pMatrix, Math.PI / 4, c.width / c.height, 0.1, 10000);
+
+                    mMatrix = mat4.create();
+                    vpMatrix = mat4.create();
+                    mvpMatrix = mat4.create();
+
+                    mat4.multiply(vpMatrix, vpMatrix, pMatrix);
+                    mat4.multiply(vpMatrix, vpMatrix, vMatrix);
             
-                    modelMatrix = mat4.create();
-                    mat4.multiply(mvpMatrix, vpMatrix, modelMatrix);
-                    mat4.invert(invMatrix, modelMatrix);
+                    mat4.multiply(mvpMatrix, vpMatrix, mMatrix);
+                    mat4.invert(invMatrix, mMatrix);
 
                     gl.uniformMatrix4fv(SP.getUniform('mvpMatrix').location, false, mvpMatrix);
-                    gl.uniformMatrix4fv(SP.getUniform('modelMatrix').location, false, modelMatrix);
+                    gl.uniformMatrix4fv(SP.getUniform('mMatrix').location, false, mMatrix);
                     gl.uniformMatrix4fv(SP.getUniform('invMatrix').location, false, invMatrix);
-                    gl.uniform3fv(SP.getUniform('lightDirection').location, lightDirection);
+                    gl.uniform3fv(SP.getUniform('lightPosition').location, lightPosition);
                     gl.uniform3fv(SP.getUniform('cameraDirection').location, cameraPosition);
                     gl.uniform4fv(SP.getUniform('ambientColor').location, ambientColor);
                     
